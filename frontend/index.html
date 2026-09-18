@@ -71,7 +71,8 @@
       <!-- API base URL -->
       <div class="flex items-center gap-2">
         <label class="text-xs text-slate-400 hidden sm:block">API URL</label>
-        <input id="apiBase" type="text" value="http://localhost:8000"
+        <input id="apiBase" type="text" value=""
+               placeholder="https://your-api.example.com"
                class="bg-ink-900 border border-ink-700 text-sm rounded px-2 py-1.5 w-56 focus:outline-none focus:ring-1 focus:ring-accent-500" />
         <button id="checkHealthBtn" title="Check API health"
                 class="bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-200 rounded p-1.5">
@@ -359,7 +360,11 @@
   // -----------------------------------------------------------
   // State
   // -----------------------------------------------------------
-  let apiBase = "http://localhost:8000";
+  // Default to the same origin the dashboard was loaded from. This makes
+  // the SPA "just work" when deployed to any host (Render, Fly.io, localhost)
+  // without requiring the user to paste the URL into the API URL field.
+  const DEFAULT_API_BASE = window.location.origin || "http://localhost:8000";
+  let apiBase = DEFAULT_API_BASE;
   let chart = null;
   let hours24 = PRESETS.s1.hours.slice();
 
@@ -392,7 +397,7 @@
   // Health check (polls /health every 30s)
   // -----------------------------------------------------------
   async function checkHealth() {
-    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || "http://localhost:8000";
+    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || DEFAULT_API_BASE;
     const t0 = performance.now();
     try {
       const r = await fetch(`${apiBase}/health`, { cache: "no-store" });
@@ -682,7 +687,7 @@
       return;
     }
 
-    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || "http://localhost:8000";
+    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || DEFAULT_API_BASE;
 
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span><span>Running…</span>`;
