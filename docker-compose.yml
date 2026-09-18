@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  gridwise:
+    build: .
+    image: gridwise-llm:latest
+    container_name: gridwise-llm
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      - LLM_PROVIDER=deterministic
+      - SOLVER_TIME_LIMIT=15
+      - NUMERICAL_TOLERANCE_KWH=0.01
+      - NUMERICAL_TOLERANCE_BDT=0.01
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

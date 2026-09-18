@@ -1,0 +1,15 @@
+.venv/
+venv/
+**/__pycache__/
+**/*.pyc
+.git/
+.gitignore
+.dockerignore
+.env
+.env.*
+tests/
+.pytest_cache/
+*.log
+*.md.bak
+README.md
+PHASE_*_VALIDATION_REPORT.md

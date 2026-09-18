@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GridWise LLM — Smart Campus Energy Dashboard</title>
+
+  <!-- Tailwind via CDN (play CDN, suitable for a single-page demo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ink: { 950: '#020617', 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
+            accent: { 500: '#3b82f6', 400: '#60a5fa', 600: '#2563eb' },
+            grid: '#f97316',
+            solar: '#facc15',
+            battery: '#22c55e',
+            tariff: '#a78bfa',
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@0.451.0/dist/umd/lucide.min.js"></script>
+
+  <style>
+    html, body { background: #020617; color: #e2e8f0; }
+    .glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px); }
+    .ring-glow { box-shadow: 0 0 0 1px rgba(59,130,246,.4), 0 8px 24px rgba(0,0,0,.4); }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .pulse-dot { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .spinner { border: 2px solid #1e293b; border-top-color: #60a5fa; border-radius: 50%; width: 18px; height: 18px; animation: spin 0.7s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .badge-applies-true { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.4); }
+    .badge-applies-false { background: rgba(148,163,184,.15); color: #94a3b8; border: 1px solid rgba(148,163,184,.4); }
+    .badge-action-charge { background: rgba(34,197,94,.15); color: #4ade80; }
+    .badge-action-discharge { background: rgba(249,115,22,.15); color: #fb923c; }
+    .badge-action-idle { background: rgba(100,116,139,.15); color: #94a3b8; }
+  </style>
+</head>
+
+<body class="min-h-screen font-sans antialiased">
+  <!-- ===================== HEADER ===================== -->
+  <header class="sticky top-0 z-30 glass border-b border-ink-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-accent-500 to-blue-700 flex items-center justify-center ring-glow">
+          <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight">
+            GridWise <span class="text-accent-400">LLM</span>
+          </h1>
+          <p class="text-xs text-slate-400">Smart Campus Energy Dashboard · BUP CSE FEST 2026</p>
+        </div>
+      </div>
+
+      <div class="flex-1"></div>
+
+      <!-- API base URL -->
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-slate-400 hidden sm:block">API URL</label>
+        <input id="apiBase" type="text" value="http://localhost:8000"
+               class="bg-ink-900 border border-ink-700 text-sm rounded px-2 py-1.5 w-56 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+        <button id="checkHealthBtn" title="Check API health"
+                class="bg-ink-800 hover:bg-ink-700 border border-ink-700 text-slate-200 rounded p-1.5">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Health badge -->
+      <div id="healthBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-ink-800 border border-ink-700">
+        <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot"></span>
+        <span>Checking…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- ===================== LEFT: INPUTS ===================== -->
+    <section class="lg:col-span-4 space-y-5">
+
+      <!-- Preset samples -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
+          <i data-lucide="flask-conical" class="w-4 h-4 text-accent-400"></i> Sample Cases
+        </h2>
+        <div class="grid grid-cols-3 gap-2">
+          <button data-preset="s1" class="preset-btn bg-ink-800 hover:bg-ink-700 border border-ink-700 text-xs font-medium py-2 rounded">Sample 1</button>
+          <button data-preset="s2" class="preset-btn bg-ink-800 hover:bg-ink-700 border border-ink-700 text-xs font-medium py-2 rounded">Sample 2</button>
+          <button data-preset="s3" class="preset-btn bg-ink-800 hover:bg-ink-700 border border-ink-700 text-xs font-medium py-2 rounded">Sample 3</button>
+        </div>
+      </div>
+
+      <!-- Scenario + notes -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4 space-y-3">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <i data-lucide="file-text" class="w-4 h-4 text-accent-400"></i> Scenario &amp; Notes
+        </h2>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">scenario_id</label>
+          <input id="scenarioId" type="text" value="campus-2026-09-18"
+                 class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500" />
+        </div>
+        <div class="space-y-2">
+          <label class="block text-xs text-slate-400">operator_notes (1–3)</label>
+          <input id="note0" type="text" placeholder='e.g. "Reduce solar output by 80% between 1 PM and 3 PM"'
+                 class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          <input id="note1" type="text" placeholder='e.g. "Do not charge the battery between 2 PM and 4 PM"'
+                 class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          <input id="note2" type="text" placeholder='e.g. "Cafeteria menu changed today" (or leave empty)'
+                 class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500" />
+        </div>
+      </div>
+
+      <!-- Battery config -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
+          <i data-lucide="battery" class="w-4 h-4 text-accent-400"></i> Battery
+        </h2>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">capacity_kwh</label>
+            <input id="battCapacity" type="number" min="0" step="0.1" value="50"
+                   class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">initial_energy_kwh</label>
+            <input id="battInitial" type="number" min="0" step="0.1" value="25"
+                   class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">minimum_energy_kwh</label>
+            <input id="battMin" type="number" min="0" step="0.1" value="5"
+                   class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">max_charge_kwh_per_hour</label>
+            <input id="battMaxCh" type="number" min="0" step="0.1" value="10"
+                   class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs text-slate-400 mb-1">max_discharge_kwh_per_hour</label>
+            <input id="battMaxDis" type="number" min="0" step="0.1" value="10"
+                   class="w-full bg-ink-950 border border-ink-700 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 24-hour data editor -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <i data-lucide="table-2" class="w-4 h-4 text-accent-400"></i> 24-Hour Data
+          </h2>
+          <div class="flex gap-1.5">
+            <button id="resetHoursBtn" class="text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 px-2 py-1 rounded">Reset</button>
+            <button id="randomizeHoursBtn" class="text-xs bg-ink-800 hover:bg-ink-700 border border-ink-700 px-2 py-1 rounded">Randomize</button>
+          </div>
+        </div>
+        <div class="overflow-auto scrollbar-thin max-h-80 border border-ink-800 rounded">
+          <table class="w-full text-[11px]">
+            <thead class="sticky top-0 bg-ink-800 text-slate-300">
+              <tr>
+                <th class="px-1 py-1 text-left">h</th>
+                <th class="px-1 py-1 text-left">demand</th>
+                <th class="px-1 py-1 text-left">solar</th>
+                <th class="px-1 py-1 text-left">tariff</th>
+              </tr>
+            </thead>
+            <tbody id="hoursTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <button id="runBtn"
+              class="w-full bg-gradient-to-r from-accent-600 to-blue-500 hover:from-accent-500 hover:to-blue-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30">
+        <i data-lucide="play" class="w-4 h-4"></i>
+        <span>Run Optimization</span>
+      </button>
+      <div id="runStatus" class="text-xs text-slate-400 text-center"></div>
+    </section>
+
+    <!-- ===================== RIGHT: RESULTS ===================== -->
+    <section class="lg:col-span-8 space-y-5">
+
+      <!-- Metric cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+          <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="bolt" class="w-3 h-3"></i> Total Grid</div>
+          <div id="mTotalGrid" class="text-2xl font-bold mt-1 text-grid">—</div>
+          <div class="text-[10px] text-slate-500">kWh</div>
+        </div>
+        <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+          <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="coins" class="w-3 h-3"></i> Total Cost</div>
+          <div id="mTotalCost" class="text-2xl font-bold mt-1 text-tariff">—</div>
+          <div class="text-[10px] text-slate-500">BDT</div>
+        </div>
+        <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+          <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="activity" class="w-3 h-3"></i> Peak Grid</div>
+          <div id="mPeakGrid" class="text-2xl font-bold mt-1 text-accent-400">—</div>
+          <div class="text-[10px] text-slate-500">kWh / hour</div>
+        </div>
+        <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+          <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="cpu" class="w-3 h-3"></i> LLM Status</div>
+          <div id="mLLMStatus" class="text-base font-semibold mt-1">—</div>
+          <div id="mLLMDetail" class="text-[10px] text-slate-500">—</div>
+        </div>
+      </div>
+
+      <!-- AI Plan Summary -->
+      <div class="bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-900/50 rounded-xl p-4">
+        <div class="flex items-center gap-2 text-xs uppercase tracking-wider text-blue-300 mb-1">
+          <i data-lucide="sparkles" class="w-3 h-3"></i> AI Plan Summary
+        </div>
+        <div id="planSummary" class="text-sm text-slate-100">Run an optimization to see the AI plan summary here.</div>
+      </div>
+
+      <!-- Directive interpretation -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
+          <i data-lucide="list-checks" class="w-4 h-4 text-accent-400"></i> LLM Directive Interpretation
+        </h2>
+        <div id="directiveList" class="space-y-2">
+          <div class="text-xs text-slate-500 italic">No directives yet — run an optimization.</div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
+          <i data-lucide="line-chart" class="w-4 h-4 text-accent-400"></i> 24-Hour Energy Plan
+        </h2>
+        <div class="relative" style="height: 360px;">
+          <canvas id="energyChart"></canvas>
+        </div>
+        <div class="flex flex-wrap gap-3 text-xs text-slate-400 mt-2">
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded" style="background:#f97316"></span> Grid Import</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded" style="background:#facc15"></span> Solar Used</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded" style="background:#22c55e"></span> Battery SOC</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 rounded" style="background:#a78bfa"></span> Tariff</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#60a5fa"></span> Demand</span>
+        </div>
+      </div>
+
+      <!-- Hourly plan table -->
+      <div class="bg-ink-900 border border-ink-800 rounded-xl p-4">
+        <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
+          <i data-lucide="table" class="w-4 h-4 text-accent-400"></i> Hourly Plan
+        </h2>
+        <div class="overflow-auto scrollbar-thin max-h-96 border border-ink-800 rounded">
+          <table class="w-full text-xs">
+            <thead class="sticky top-0 bg-ink-800 text-slate-300">
+              <tr>
+                <th class="px-2 py-1.5 text-left">Hour</th>
+                <th class="px-2 py-1.5 text-right">Demand</th>
+                <th class="px-2 py-1.5 text-right">Solar</th>
+                <th class="px-2 py-1.5 text-right">Grid</th>
+                <th class="px-2 py-1.5 text-left">Action</th>
+                <th class="px-2 py-1.5 text-right">Batt kWh</th>
+                <th class="px-2 py-1.5 text-right">SOC</th>
+                <th class="px-2 py-1.5 text-right">Tariff</th>
+                <th class="px-2 py-1.5 text-right">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="hourlyPlanBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-6 py-6 text-xs text-slate-500 text-center">
+    GridWise LLM · FastAPI · PuLP · Gemini · BUP CSE FEST 2026
+  </footer>
+
+  <!-- ===================== APP LOGIC ===================== -->
+  <script>
+  /* eslint-disable */
+  // -----------------------------------------------------------
+  // Sample presets (deterministic, reproducible).
+  // -----------------------------------------------------------
+  const PRESETS = {
+    s1: {
+      scenario_id: "campus-solar-nocharge",
+      notes: [
+        "Reduce solar availability by 80% from 10 AM to 2 PM.",
+        "Do not charge the battery between 14:00 and 16:00.",
+      ],
+      battery: { capacity_kwh: 50, initial_energy_kwh: 25, minimum_energy_kwh: 5,
+                 max_charge_kwh_per_hour: 10, max_discharge_kwh_per_hour: 10 },
+      hours: makeHours({
+        demand: 10, solar: 5, tariff: 8,
+        solarOverrides: { 10: 1.0, 11: 1.0, 12: 1.0, 13: 1.0 },
+        demandOverrides: { 14: 12, 15: 12, 18: 14, 19: 14, 20: 13 },
+      }),
+    },
+    s2: {
+      scenario_id: "campus-evening-cap",
+      notes: [
+        "Cap grid usage at 5 kWh from 6 PM to 9 PM.",
+        "Keep battery at minimum 20 kWh from 6 PM to 9 PM.",
+        "Cafeteria menu has changed today.",
+      ],
+      battery: { capacity_kwh: 60, initial_energy_kwh: 30, minimum_energy_kwh: 10,
+                 max_charge_kwh_per_hour: 12, max_discharge_kwh_per_hour: 12 },
+      hours: makeHours({
+        demand: 11, solar: 4, tariff: 9,
+        demandOverrides: { 18: 16, 19: 17, 20: 15 },
+        tariffOverrides: { 18: 14, 19: 14, 20: 14 },
+      }),
+    },
+    s3: {
+      scenario_id: "campus-window-protect",
+      notes: [
+        "Do not discharge the battery between 6 PM and 10 PM.",
+        "Reduce solar by 50% from 11 AM to 1 PM.",
+      ],
+      battery: { capacity_kwh: 50, initial_energy_kwh: 20, minimum_energy_kwh: 8,
+                 max_charge_kwh_per_hour: 10, max_discharge_kwh_per_hour: 10 },
+      hours: makeHours({
+        demand: 10, solar: 6, tariff: 7.5,
+        demandOverrides: { 18: 14, 19: 15, 20: 14, 21: 12 },
+      }),
+    },
+  };
+
+  function makeHours({ demand = 10, solar = 5, tariff = 8,
+                       demandOverrides = {}, solarOverrides = {}, tariffOverrides = {} } = {}) {
+    const out = [];
+    for (let h = 0; h < 24; h++) {
+      // Simple solar curve: peak at noon.
+      const solar_curve = Math.max(0, 4 * Math.sin(((h - 6) / 12) * Math.PI));
+      out.push({
+        hour: h,
+        demand_kwh: demandOverrides[h] ?? demand,
+        solar_kwh: +(solarOverrides[h] ?? solar_curve.toFixed(2)),
+        tariff_bdt_per_kwh: tariffOverrides[h] ?? tariff,
+      });
+    }
+    return out;
+  }
+
+  // -----------------------------------------------------------
+  // State
+  // -----------------------------------------------------------
+  let apiBase = "http://localhost:8000";
+  let chart = null;
+  let hours24 = PRESETS.s1.hours.slice();
+
+  // -----------------------------------------------------------
+  // DOM helpers
+  // -----------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+
+  function refreshIcons() {
+    if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+  }
+
+  function setHealth(state, label, latencyMs = null) {
+    const badge = $("healthBadge");
+    const dotColor = state === "ok" ? "bg-emerald-400"
+                   : state === "warn" ? "bg-amber-400"
+                   : "bg-rose-500";
+    const txtColor = state === "ok" ? "text-emerald-300"
+                   : state === "warn" ? "text-amber-300"
+                   : "text-rose-300";
+    badge.className = `flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-ink-800 border border-ink-700 ${txtColor}`;
+    badge.innerHTML = `
+      <span class="w-2 h-2 rounded-full ${dotColor} pulse-dot"></span>
+      <span>${label}</span>
+      ${latencyMs != null ? `<span class="text-slate-500">· ${latencyMs} ms</span>` : ""}
+    `;
+  }
+
+  // -----------------------------------------------------------
+  // Health check (polls /health every 30s)
+  // -----------------------------------------------------------
+  async function checkHealth() {
+    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || "http://localhost:8000";
+    const t0 = performance.now();
+    try {
+      const r = await fetch(`${apiBase}/health`, { cache: "no-store" });
+      const dt = Math.round(performance.now() - t0);
+      if (r.ok) {
+        const body = await r.json().catch(() => ({}));
+        if (body.status === "ok") {
+          setHealth("ok", "API Online", dt);
+        } else {
+          setHealth("warn", `API · ${body.status || "Unknown"}`, dt);
+        }
+      } else {
+        setHealth("err", `API Offline · HTTP ${r.status}`, dt);
+      }
+    } catch (err) {
+      setHealth("err", "API Offline", null);
+    }
+  }
+
+  // -----------------------------------------------------------
+  // Hours table
+  // -----------------------------------------------------------
+  function renderHoursTable() {
+    const tbody = $("hoursTableBody");
+    tbody.innerHTML = "";
+    hours24.forEach((row, i) => {
+      const tr = document.createElement("tr");
+      tr.className = "odd:bg-ink-900 even:bg-ink-950 hover:bg-ink-800";
+      tr.innerHTML = `
+        <td class="px-1 py-0.5 text-slate-400">${String(row.hour).padStart(2,"0")}</td>
+        <td class="px-1 py-0.5"><input data-i="${i}" data-k="demand_kwh" type="number" min="0" step="0.1" value="${row.demand_kwh}"
+               class="w-full bg-transparent text-right focus:outline-none focus:bg-ink-800 rounded px-1" /></td>
+        <td class="px-1 py-0.5"><input data-i="${i}" data-k="solar_kwh" type="number" min="0" step="0.1" value="${row.solar_kwh}"
+               class="w-full bg-transparent text-right focus:outline-none focus:bg-ink-800 rounded px-1" /></td>
+        <td class="px-1 py-0.5"><input data-i="${i}" data-k="tariff_bdt_per_kwh" type="number" min="0" step="0.1" value="${row.tariff_bdt_per_kwh}"
+               class="w-full bg-transparent text-right focus:outline-none focus:bg-ink-800 rounded px-1" /></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach((inp) => {
+      inp.addEventListener("input", (e) => {
+        const i = +e.target.dataset.i;
+        const k = e.target.dataset.k;
+        const v = parseFloat(e.target.value);
+        hours24[i][k] = isNaN(v) ? 0 : v;
+      });
+    });
+  }
+
+  function loadPreset(key) {
+    const p = PRESETS[key];
+    if (!p) return;
+    $("scenarioId").value = p.scenario_id;
+    $("note0").value = p.notes[0] || "";
+    $("note1").value = p.notes[1] || "";
+    $("note2").value = p.notes[2] || "";
+    $("battCapacity").value = p.battery.capacity_kwh;
+    $("battInitial").value   = p.battery.initial_energy_kwh;
+    $("battMin").value       = p.battery.minimum_energy_kwh;
+    $("battMaxCh").value     = p.battery.max_charge_kwh_per_hour;
+    $("battMaxDis").value    = p.battery.max_discharge_kwh_per_hour;
+    hours24 = JSON.parse(JSON.stringify(p.hours));
+    renderHoursTable();
+  }
+
+  // -----------------------------------------------------------
+  // Build request payload
+  // -----------------------------------------------------------
+  function buildPayload() {
+    const notes = [$("note0").value, $("note1").value, $("note2").value]
+      .map((s) => (s || "").trim())
+      .filter(Boolean);
+    if (notes.length === 0) {
+      throw new Error("Please enter at least one operator note.");
+    }
+    if (notes.length > 3) {
+      throw new Error("At most 3 operator notes are allowed.");
+    }
+    return {
+      scenario_id: $("scenarioId").value.trim() || "scenario",
+      operator_notes: notes,
+      hourly_data: hours24.map((h) => ({
+        hour: h.hour,
+        demand_kwh: Number(h.demand_kwh),
+        solar_kwh: Number(h.solar_kwh),
+        tariff_bdt_per_kwh: Number(h.tariff_bdt_per_kwh),
+      })),
+      battery: {
+        capacity_kwh: Number($("battCapacity").value),
+        initial_energy_kwh: Number($("battInitial").value),
+        minimum_energy_kwh: Number($("battMin").value),
+        max_charge_kwh_per_hour: Number($("battMaxCh").value),
+        max_discharge_kwh_per_hour: Number($("battMaxDis").value),
+      },
+    };
+  }
+
+  // -----------------------------------------------------------
+  // Render: directive cards, metrics, plan summary, hourly table, chart
+  // -----------------------------------------------------------
+  function renderDirectives(directives) {
+    const list = $("directiveList");
+    if (!directives || directives.length === 0) {
+      list.innerHTML = `<div class="text-xs text-slate-500 italic">No directives returned.</div>`;
+      return;
+    }
+    list.innerHTML = directives.map((d) => {
+      const appliesBadge = d.applies
+        ? `<span class="badge-applies-true text-[10px] px-1.5 py-0.5 rounded">applies</span>`
+        : `<span class="badge-applies-false text-[10px] px-1.5 py-0.5 rounded">no_op</span>`;
+      const adj = d.structured_adjustment;
+      let adjHtml = "";
+      if (adj) {
+        const parts = [];
+        if (adj.hours)        parts.push(`<span><span class="text-slate-400">hours:</span> [${adj.hours.join(", ")}]</span>`);
+        if (adj.factor != null)        parts.push(`<span><span class="text-slate-400">factor:</span> ${adj.factor}</span>`);
+        if (adj.minimum_energy_kwh != null) parts.push(`<span><span class="text-slate-400">min_energy:</span> ${adj.minimum_energy_kwh} kWh</span>`);
+        if (adj.max_grid_kwh != null)       parts.push(`<span><span class="text-slate-400">max_grid:</span> ${adj.max_grid_kwh} kWh</span>`);
+        adjHtml = `<div class="mt-1 text-xs text-slate-300 flex flex-wrap gap-x-3 gap-y-1">${parts.join("")}</div>`;
+      }
+      return `
+        <div class="bg-ink-950 border border-ink-800 rounded-lg p-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] text-slate-500">note #${d.note_index}</span>
+            <span class="font-mono text-xs text-accent-400">${d.directive_type}</span>
+            ${appliesBadge}
+          </div>
+          <div class="text-xs text-slate-400 italic mt-1">"${d.paraphrase || d.original_note || ""}"</div>
+          ${adjHtml}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderMetrics(body) {
+    $("mTotalGrid").textContent = body.total_grid_kwh.toFixed(2);
+    $("mTotalCost").textContent = body.total_cost_bdt.toFixed(2);
+    $("mPeakGrid").textContent  = body.peak_grid_kwh.toFixed(2);
+    // Best-effort LLM-status indicator (the API doesn't return the model name
+    // in the response body, but we can show the latency and a fixed label).
+    $("mLLMStatus").textContent = "Gemini (multi-model fallback)";
+    $("mLLMDetail").textContent = "primary generative LLM";
+    $("planSummary").textContent = body.plan_summary || "—";
+  }
+
+  function renderHourlyTable(plan) {
+    const tbody = $("hourlyPlanBody");
+    tbody.innerHTML = plan.map((row) => {
+      const actionClass = row.battery_action === "charge" ? "badge-action-charge"
+                        : row.battery_action === "discharge" ? "badge-action-discharge"
+                        : "badge-action-idle";
+      return `
+        <tr class="odd:bg-ink-900 even:bg-ink-950 hover:bg-ink-800">
+          <td class="px-2 py-1 text-slate-300 font-mono">${String(row.hour).padStart(2,"0")}:00</td>
+          <td class="px-2 py-1 text-right">${row.demand_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1 text-right text-yellow-300">${row.solar_used_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1 text-right text-orange-300">${row.grid_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1"><span class="${actionClass} text-[10px] px-1.5 py-0.5 rounded font-mono">${row.battery_action}</span></td>
+          <td class="px-2 py-1 text-right">${row.battery_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1 text-right text-emerald-300">${row.battery_energy_after_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1 text-right text-violet-300">${row.tariff_bdt_per_kwh.toFixed(2)}</td>
+          <td class="px-2 py-1 text-right">${row.cost_bdt.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function renderChart(plan) {
+    const labels = plan.map((r) => String(r.hour).padStart(2,"0") + ":00");
+    const ctx = document.getElementById("energyChart").getContext("2d");
+
+    const datasets = [
+      {
+        type: "bar",
+        label: "Demand (kWh)",
+        data: plan.map((r) => r.demand_kwh),
+        backgroundColor: "rgba(96, 165, 250, 0.25)",
+        borderColor: "#60a5fa",
+        borderWidth: 1,
+        stack: "demand",
+        yAxisID: "y",
+        order: 5,
+      },
+      {
+        type: "bar",
+        label: "Grid Import (kWh)",
+        data: plan.map((r) => r.grid_kwh),
+        backgroundColor: "#f97316",
+        borderColor: "#fb923c",
+        borderWidth: 1,
+        stack: "supply",
+        yAxisID: "y",
+        order: 4,
+      },
+      {
+        type: "bar",
+        label: "Solar Used (kWh)",
+        data: plan.map((r) => r.solar_used_kwh),
+        backgroundColor: "#facc15",
+        borderColor: "#fde68a",
+        borderWidth: 1,
+        stack: "supply",
+        yAxisID: "y",
+        order: 3,
+      },
+      {
+        type: "line",
+        label: "Battery SOC (kWh)",
+        data: plan.map((r) => r.battery_energy_after_kwh),
+        borderColor: "#22c55e",
+        backgroundColor: "rgba(34,197,94,0.15)",
+        borderWidth: 2,
+        tension: 0.35,
+        fill: false,
+        pointRadius: 2,
+        yAxisID: "y",
+        order: 1,
+      },
+      {
+        type: "line",
+        label: "Tariff (BDT/kWh)",
+        data: plan.map((r) => r.tariff_bdt_per_kwh),
+        borderColor: "#a78bfa",
+        borderDash: [5, 4],
+        borderWidth: 2,
+        tension: 0.2,
+        fill: false,
+        pointRadius: 0,
+        yAxisID: "yTariff",
+        order: 0,
+      },
+    ];
+
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "rgba(15,23,42,0.95)",
+            borderColor: "#334155",
+            borderWidth: 1,
+            titleColor: "#e2e8f0",
+            bodyColor: "#cbd5e1",
+          },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { color: "#94a3b8", maxRotation: 0, autoSkipPadding: 8 },
+            grid: { color: "rgba(148,163,184,0.08)" },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            title: { display: true, text: "Energy (kWh)", color: "#94a3b8" },
+            ticks: { color: "#94a3b8" },
+            grid: { color: "rgba(148,163,184,0.08)" },
+          },
+          yTariff: {
+            position: "right",
+            beginAtZero: true,
+            title: { display: true, text: "Tariff (BDT/kWh)", color: "#a78bfa" },
+            ticks: { color: "#a78bfa" },
+            grid: { drawOnChartArea: false },
+          },
+        },
+      },
+    });
+  }
+
+  // -----------------------------------------------------------
+  // Run optimization
+  // -----------------------------------------------------------
+  async function runOptimization() {
+    const btn = $("runBtn");
+    const status = $("runStatus");
+    let payload;
+    try {
+      payload = buildPayload();
+    } catch (err) {
+      status.innerHTML = `<span class="text-rose-400">${err.message}</span>`;
+      return;
+    }
+
+    apiBase = ($("apiBase").value || "").trim().replace(/\/+$/, "") || "http://localhost:8000";
+
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span><span>Running…</span>`;
+    status.innerHTML = `<span class="text-slate-400">POST ${apiBase}/optimize-energy …</span>`;
+
+    try {
+      const r = await fetch(`${apiBase}/optimize-energy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const dt = Math.round(performance.now() - performance.now()); // approx
+      const text = await r.text();
+      let body;
+      try { body = JSON.parse(text); } catch { body = null; }
+      if (!r.ok) {
+        const detail = (body && body.detail) ? JSON.stringify(body.detail) : text.slice(0, 300);
+        status.innerHTML = `<span class="text-rose-400">HTTP ${r.status}</span> · <span class="text-slate-400">${detail}</span>`;
+        return;
+      }
+      status.innerHTML = `<span class="text-emerald-400">OK · ${body.hourly_plan.length} hours planned</span>`;
+      renderMetrics(body);
+      renderDirectives(body.directive_interpretation);
+      renderHourlyTable(body.hourly_plan);
+      renderChart(body.hourly_plan);
+    } catch (err) {
+      status.innerHTML = `<span class="text-rose-400">Network error: ${err.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i><span>Run Optimization</span>`;
+      refreshIcons();
+    }
+  }
+
+  // -----------------------------------------------------------
+  // Wire events
+  // -----------------------------------------------------------
+  function wire() {
+    $("apiBase").addEventListener("change", checkHealth);
+    $("checkHealthBtn").addEventListener("click", checkHealth);
+    $("runBtn").addEventListener("click", runOptimization);
+
+    document.querySelectorAll(".preset-btn").forEach((b) => {
+      b.addEventListener("click", () => loadPreset(b.dataset.preset));
+    });
+
+    $("resetHoursBtn").addEventListener("click", () => {
+      hours24 = makeHours();
+      renderHoursTable();
+    });
+    $("randomizeHoursBtn").addEventListener("click", () => {
+      hours24 = hours24.map((h, i) => ({
+        hour: i,
+        demand_kwh: +(8 + Math.random() * 8).toFixed(2),
+        solar_kwh: h.solar_kwh, // keep solar curve
+        tariff_bdt_per_kwh: +(5 + Math.random() * 6).toFixed(2),
+      }));
+      renderHoursTable();
+    });
+  }
+
+  // -----------------------------------------------------------
+  // Bootstrap
+  // -----------------------------------------------------------
+  window.addEventListener("DOMContentLoaded", () => {
+    refreshIcons();
+    wire();
+    loadPreset("s1");           // pre-load Sample 1
+    checkHealth();              // initial health check
+    setInterval(checkHealth, 30000);
+  });
+  </script>
+</body>
+</html>

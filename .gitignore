@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Build / dist
+dist/
+build/
+
+# Cobertura / coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Docker
+*.log
+
+# Project-specific reports (kept locally only, regenerated per session)
+PHASE_*_VALIDATION_REPORT.md
