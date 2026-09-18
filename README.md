@@ -262,13 +262,68 @@ inside the container.
 
 ## 13. Deployment
 
-1. Push the image: `docker push <registry>/gridwise-llm:<tag>`.
-2. Run on any Docker-compatible host (Render, Fly.io, Railway, ECS, K8s).
-3. The service binds `0.0.0.0:8000` and exposes `/health` and `/optimize-energy`.
+The service is fully containerized and ships with a Render Blueprint
+(`render.yaml`) so it can be deployed in under a minute.
 
-For the competition deployment, run behind a public reverse proxy (Caddy,
-NGINX, Cloudflare). The service returns no sensitive data and never logs
-operator notes by default.
+### Deploy to Render (one click via Blueprint)
+
+1. Sign in to <https://render.com> with the GitHub account that owns this
+   repo.
+2. Click **New +** → **Blueprint**.
+3. Select the `Smart-Campus-Energy-Optimization-Challenge` repository.
+4. Render reads `render.yaml` and provisions a `web` service named
+   `gridwise-llm` using the included `Dockerfile`.
+5. Open the new service's **Environment** tab and paste your
+   `GEMINI_API_KEY` (Render prompts for it because it's marked
+   `sync: false`).
+6. Click **Manual Deploy** → **Deploy latest commit** (or just wait —
+   `autoDeploy: true` triggers on every push to `main`).
+7. Once the deploy logs show `INFO:     Application startup complete.`,
+   open `https://gridwise-llm.onrender.com/` — you'll see the dashboard.
+
+### Deploy to Render (manual, no Blueprint)
+
+1. **New +** → **Web Service** → connect repo.
+2. **Runtime**: `Docker`.
+3. **Region**: `Oregon` (or `Singapore` if you're in South Asia).
+4. **Plan**: `Starter` (free) for the demo; `Standard` for production.
+5. **Health Check Path**: `/health`.
+6. **Environment Variables**:
+
+   | Key | Value |
+   | --- | --- |
+   | `LLM_PROVIDER` | `gemini` |
+   | `GEMINI_API_KEY` | *(paste your key)* |
+   | `GEMINI_MODEL_FALLBACK_LIST` | `gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.1-pro-preview` |
+   | `LLM_REQUEST_TIMEOUT_SECONDS` | `3.0` |
+   | `GEMINI_CACHE_SIZE` | `256` |
+   | `SOLVER_TIME_LIMIT` | `15` |
+   | `LOG_LEVEL` | `INFO` |
+
+7. Click **Create Web Service**.
+
+### Deploy to Fly.io / Railway / any Docker host
+
+```bash
+docker build -t gridwise-llm .
+docker run -d -p 8000:8000 \
+  -e GEMINI_API_KEY=$GEMINI_API_KEY \
+  -e LLM_PROVIDER=gemini \
+  gridwise-llm
+```
+
+The Dockerfile installs the system `coinor-cbc` solver, runs uvicorn on
+`$PORT` (set automatically by Render), serves the dashboard at `/`, and
+exposes `/health` for Render's health check.
+
+### Notes
+
+- Render's free tier sleeps the service after 15 minutes of inactivity;
+  the first request after sleep takes a few seconds to cold-start.
+- The Dockerfile runs as a non-root user (`gridwise`, UID 1000) and
+  exposes port `8000` (or `$PORT` if Render overrides it).
+- All LLM secrets are environment variables; nothing is baked into the
+  image.
 
 ---
 

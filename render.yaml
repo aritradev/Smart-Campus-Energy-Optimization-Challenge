@@ -1,0 +1,44 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploys the GridWise LLM FastAPI service. To use:
+#   1. Push this repo to GitHub (already done).
+#   2. In Render dashboard → "New" → "Blueprint" → connect repo.
+#   3. Render reads this file and provisions the service automatically.
+#   4. Add GEMINI_API_KEY in the service's "Environment" tab (marked
+#      sync: false below so Render prompts you on first deploy).
+
+services:
+  - type: web
+    name: gridwise-llm
+    runtime: docker
+    plan: starter                # Free tier; change to "standard" for production
+    region: oregon               # Closest to BUP / South Asia via singapore if preferred
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true             # Re-deploy on push to main
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8000
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LLM_PROVIDER
+        value: gemini             # primary LLM backend; falls back to deterministic
+      - key: LLM_REQUEST_TIMEOUT_SECONDS
+        value: "3.0"
+      - key: GEMINI_MODEL_FALLBACK_LIST
+        value: gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.1-pro-preview
+      - key: GEMINI_CACHE_SIZE
+        value: "256"
+      - key: SOLVER_TIME_LIMIT
+        value: "15"
+      - key: NUMERICAL_TOLERANCE_KWH
+        value: "0.01"
+      - key: NUMERICAL_TOLERANCE_BDT
+        value: "0.01"
+      # sync: false means Render will NOT pull this from the repo — you must
+      # paste it manually in the dashboard (or use a Secret File).
+      - key: GEMINI_API_KEY
+        sync: false

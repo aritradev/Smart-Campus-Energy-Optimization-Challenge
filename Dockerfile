@@ -7,14 +7,18 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install build deps for CBC and runtime deps
+# Install build deps (gcc for any wheels that need compiling) + CBC solver
+# (PuLP's default CBC backend) + curl for HEALTHCHECK.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
       gcc \
+      coinor-cbc \
+      coinor-libcbc-dev \
  && rm -rf /var/lib/apt/lists/*
 
+# Install Python deps first (better layer caching on rebuilds)
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -28,12 +32,13 @@ USER gridwise
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:${PORT:-8000}/health || exit 1
 
 ENV PORT=8000 \
     HOST=0.0.0.0 \
     LOG_LEVEL=INFO \
-    LLM_PROVIDER=deterministic
+    LLM_PROVIDER=gemini
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Render sets $PORT automatically. Use shell form so the variable expands.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
