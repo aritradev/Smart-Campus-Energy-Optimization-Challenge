@@ -260,3 +260,61 @@ def test_interpreter_does_not_crash_on_empty_string():
     result = di.interpret([" "])
     # It still produces a (possibly no_op) directive.
     assert isinstance(result, list) and len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# Time-parse warnings: unparseable clock tokens surface but don't break plan
+# ---------------------------------------------------------------------------
+
+
+def test_unparseable_time_emits_warning():
+    """Operator typo like '33 AM' should NOT silently corrupt the window.
+
+    The deterministic interpreter must (a) flag the unparseable token via
+    the ``warnings`` field so the operator sees their typo, and (b) use the
+    parseable end of the range as a best-effort fallback so the plan still
+    runs.
+    """
+    notes = ["Reduce solar by 50% from 33 AM to 1 PM"]
+    out = interpret_notes(notes, settings=Settings(llm_provider="deterministic"))
+    d = out.directives[0]
+    # Best-effort fallback applied — directive still active.
+    assert d.applies is True
+    assert d.directive_type == "solar_reduction"
+    assert d.structured_adjustment.factor == pytest.approx(0.5)
+    # Only the parseable end of the range is used (1 PM = hour 13).
+    assert d.structured_adjustment.hours == [13]
+    # The typo is flagged, not hidden.
+    assert len(d.warnings) == 1
+    assert "33 am" in d.warnings[0].lower()
+    assert "0-23" in d.warnings[0]
+
+
+def test_partial_range_uses_parseable_end():
+    """When only the END of a range is parseable, prefer the parseable end.
+
+    This guards against the previous silent-corruption bug where
+    'Reduce solar by 50% from 33 AM to 1 PM' applied to hour [13] without
+    any signal that '33 AM' was invalid.
+    """
+    notes = ["Cut solar by 50% from 99 to 8 PM"]
+    out = interpret_notes(notes, settings=Settings(llm_provider="deterministic"))
+    d = out.directives[0]
+    # The directive still applies (50% reduction is a valid signal) and
+    # the warning surfaces the typo.
+    assert d.directive_type == "solar_reduction"
+    assert d.warnings
+    assert any("99" in w for w in d.warnings)
+    # Best-effort: the parseable end (8 PM = hour 20) is used.
+    assert d.structured_adjustment.hours == [20]
+
+
+def test_no_warning_for_clean_times():
+    """A well-formed note must produce zero warnings (no false positives)."""
+    notes = ["Reduce solar by 50% from 3 AM to 1 PM"]
+    out = interpret_notes(notes, settings=Settings(llm_provider="deterministic"))
+    d = out.directives[0]
+    assert d.directive_type == "solar_reduction"
+    assert d.structured_adjustment.hours == [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    assert d.structured_adjustment.factor == pytest.approx(0.5)
+    assert d.warnings == []

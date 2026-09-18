@@ -153,6 +153,10 @@ class LLMDirective(_StrictModel):
     directive_type: DirectiveType
     structured_adjustment: Optional[StructuredAdjustmentModel] = None
     paraphrase: str = ""
+    # Non-fatal parse warnings surfaced to the operator. Empty when the
+    # note parsed cleanly (e.g. when produced by the Gemini LLM). Populated
+    # by the deterministic interpreter for things like unparseable times.
+    warnings: List[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod

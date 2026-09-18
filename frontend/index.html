@@ -373,6 +373,15 @@
   // -----------------------------------------------------------
   const $ = (id) => document.getElementById(id);
 
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function refreshIcons() {
     if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
   }
@@ -518,6 +527,14 @@
         if (adj.max_grid_kwh != null)       parts.push(`<span><span class="text-slate-400">max_grid:</span> ${adj.max_grid_kwh} kWh</span>`);
         adjHtml = `<div class="mt-1 text-xs text-slate-300 flex flex-wrap gap-x-3 gap-y-1">${parts.join("")}</div>`;
       }
+      // Render operator-visible parse warnings (e.g. unparseable clock times).
+      const warnings = Array.isArray(d.warnings) ? d.warnings : [];
+      const warningsHtml = warnings.length
+        ? `<div class="mt-2 px-2 py-1.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[11px] flex items-start gap-1.5">
+             <i data-lucide="alert-triangle" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+             <div class="space-y-0.5">${warnings.map(w => `<div>${escapeHtml(w)}</div>`).join("")}</div>
+           </div>`
+        : "";
       return `
         <div class="bg-ink-950 border border-ink-800 rounded-lg p-3">
           <div class="flex items-center gap-2 flex-wrap">
@@ -527,9 +544,11 @@
           </div>
           <div class="text-xs text-slate-400 italic mt-1">"${d.paraphrase || d.original_note || ""}"</div>
           ${adjHtml}
+          ${warningsHtml}
         </div>
       `;
     }).join("");
+    refreshIcons();
   }
 
   function renderMetrics(body) {

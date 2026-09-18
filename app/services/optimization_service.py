@@ -134,6 +134,7 @@ def _build_interpretations(
                 structured_adjustment=echo,
                 paraphrase=d.paraphrase or note,
                 original_note=note,
+                warnings=list(d.warnings or []),
             )
         )
     return out

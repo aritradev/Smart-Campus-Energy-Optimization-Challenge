@@ -64,6 +64,8 @@ class DirectiveInterpretation(BaseModel):
     structured_adjustment: Optional[StructuredAdjustmentEcho] = None
     paraphrase: str = ""
     original_note: str = ""
+    # Operator-visible parse warnings (empty when note parsed cleanly).
+    warnings: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

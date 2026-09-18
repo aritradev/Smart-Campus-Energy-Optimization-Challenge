@@ -77,21 +77,56 @@ def _expand_range(start: int, end: int) -> List[int]:
 
 
 def _extract_hours(text: str) -> List[int]:
-    """Extract all hour-clock mentions from the text.
+    """Backward-compatible wrapper around :func:`_extract_hours_with_warnings`.
+
+    Returns only the parsed hours list. Use
+    :func:`_extract_hours_with_warnings` directly when you also need to
+    surface parse warnings (e.g. for operator feedback).
+    """
+    hours, _ = _extract_hours_with_warnings(text)
+    return hours
+
+
+def _extract_hours_with_warnings(text: str) -> Tuple[List[int], List[str]]:
+    """Extract all hour-clock mentions from the text, returning parse warnings.
 
     Hours are always returned in ascending order (per the schema contract).
     Wrap-around ranges such as "22:00 to 02:00" produce a set of hours
     ``{22, 23, 0, 1}`` and are sorted ascending, giving ``[0, 1, 22, 23]``.
 
     Recognised keyword tokens: ``noon`` (12), ``midnight`` (0).
+
+    Warnings are emitted for clock-time tokens that matched a time-specific
+    regex but failed to parse because the hour value was out of the valid
+    1-12 (12h) or 0-23 (24h) range — e.g. ``33 AM`` in
+    ``"Reduce solar by 50% from 33 AM to 1 PM"``. The best-effort fallback
+    is to use whatever end of the range *did* parse; the warning surfaces
+    the typo so the operator can fix it.
+
+    Returns:
+        ``(hours, warnings)`` where ``hours`` is a sorted, deduplicated list
+        of integer hours 0-23 and ``warnings`` is a list of human-readable
+        warning strings.
     """
     hours: List[int] = []
+    warnings: List[str] = []
 
     # First, try to find a "X to Y" range — these are the most informative.
     for m in _TO_RANGE.finditer(text):
         s_raw, e_raw = m.group(1), m.group(2)
         s = _parse_clock(s_raw)
         e = _parse_clock(e_raw)
+        # Surface parse failures as warnings so operators see their typos.
+        if s is None and re.search(r"\d", s_raw):
+            warnings.append(
+                f"unparseable time '{s_raw.strip()}' "
+                f"(hour out of 0-23 range)"
+            )
+        if e is None and re.search(r"\d", e_raw):
+            warnings.append(
+                f"unparseable time '{e_raw.strip()}' "
+                f"(hour out of 0-23 range)"
+            )
         # If only one of the pair has AM/PM, propagate it.
         if s is not None and e is not None:
             if "pm" in e_raw.lower() and "am" not in s_raw.lower() and "pm" not in s_raw.lower():
@@ -116,7 +151,7 @@ def _extract_hours(text: str) -> List[int]:
 
     # If we found a complete range, prefer it over scattered mentions.
     if hours:
-        return sorted(set(hours))
+        return sorted(set(hours)), warnings
 
     # Otherwise, collect single mentions (AM/PM, 24h, and noon/midnight).
     for kw, hr in _KEYWORD_HOURS.items():
@@ -134,7 +169,7 @@ def _extract_hours(text: str) -> List[int]:
         h = int(m.group(1))
         if 0 <= h <= 23 and h not in hours:
             hours.append(h)
-    return sorted(set(hours))
+    return sorted(set(hours)), warnings
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +441,7 @@ class _Signals:
     text: str
     text_lower: str
     hours: List[int]
+    hours_warnings: List[str]
     pct: Optional[float]
     pct_value: Optional[float]  # 0..1 fraction
     pct_is_reduction_magnitude: bool
@@ -456,6 +492,7 @@ class DeterministicInterpreter:
             "directive_type": directive_type,
             "structured_adjustment": adjustment,
             "paraphrase": note.strip(),
+            "warnings": list(s.hours_warnings),
         }
         return out
 
@@ -463,7 +500,7 @@ class DeterministicInterpreter:
         text = note.strip()
         text_lower = text.lower()
 
-        hours = _extract_hours(text_lower)
+        hours, hours_warnings = _extract_hours_with_warnings(text_lower)
         pct = _extract_pct(text_lower)
         pct_value, pct_is_reduction_magnitude = _extract_pct_semantics(text_lower)
         pct_of_capacity = _extract_pct_of_capacity(text_lower)
@@ -499,6 +536,7 @@ class DeterministicInterpreter:
             text=text,
             text_lower=text_lower,
             hours=hours,
+            hours_warnings=hours_warnings,
             pct=pct,
             pct_value=pct_value,
             pct_is_reduction_magnitude=pct_is_reduction_magnitude,
