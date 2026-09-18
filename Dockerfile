@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Application code
 COPY app /app/app
 
+# Frontend SPA (served at / when present; see app/main.py)
+COPY frontend /app/frontend
+
 # Non-root user
 RUN useradd -m -u 1000 gridwise \
  && chown -R gridwise:gridwise /app
